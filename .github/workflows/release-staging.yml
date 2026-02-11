@@ -85,41 +85,14 @@ jobs:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
       build-args: ${{ matrix.args }}
-      sign-binaries: true
+      sign-binaries: false
       asset-prefix: "meeting-assistant-staging"
       upload-artifacts: false
       release-id: ${{ needs.create-release.outputs.release-id }}
     secrets: inherit
 
-  publish-staging-manifest:
-    needs: [create-release, build-all-platforms]
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download latest.json from staging release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download "${{ needs.create-release.outputs.tag }}" --pattern "latest.json" --dir .
-          test -f latest.json
-
-      - name: Publish manifest to staging-updates branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git init
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan staging-updates
-          cp latest.json ./latest.json
-          git add latest.json
-          git commit -m "Update staging manifest for ${{ needs.create-release.outputs.tag }}"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          git push --force origin staging-updates
-
   release-summary:
-    needs: [create-release, build-all-platforms, publish-staging-manifest]
+    needs: [create-release, build-all-platforms]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -132,4 +105,5 @@ jobs:
           echo "**Version:** \`${{ needs.create-release.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Staging updater manifest:** https://raw.githubusercontent.com/${{ github.repository }}/staging-updates/latest.json" >> $GITHUB_STEP_SUMMARY
+          echo "This staging build is unsigned to simplify setup." >> $GITHUB_STEP_SUMMARY
+          echo "Updater manifest publishing is disabled until signing secrets are configured." >> $GITHUB_STEP_SUMMARY
