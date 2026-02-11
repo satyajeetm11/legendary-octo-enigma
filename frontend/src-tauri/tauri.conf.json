@@ -1,18 +1,18 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "meetily",
+    "productName": "meeting-assistant",
     "version": "0.2.1",
-    "identifier": "com.meetily.ai",
+    "identifier": "com.meetingassistant.app",
     "build": {
         "frontendDist": "../out",
         "devUrl": "http://localhost:3118",
-        "beforeDevCommand": "pnpm dev",
-        "beforeBuildCommand": "pnpm build"
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build"
     },
     "app": {
         "windows": [
             {
-                "title": "meetily",
+                "title": "Meeting Assistant",
                 "width": 1100,
                 "height": 700,
                 "resizable": true,
