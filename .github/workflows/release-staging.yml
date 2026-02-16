@@ -66,33 +66,68 @@ jobs:
             console.log(`Created staging draft release with ID: ${data.id}`)
             return data.id
 
-  build-all-platforms:
+  build-macos-staging:
     needs: create-release
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: "macos-14"
-            args: "--target aarch64-apple-darwin --config src-tauri/tauri.staging.conf.json"
-            target: "aarch64-apple-darwin"
-          - platform: "windows-latest"
-            args: "--config src-tauri/tauri.staging.conf.json"
-            target: "x86_64-pc-windows-msvc"
-    uses: ./.github/workflows/build.yml
-    with:
-      platform: ${{ matrix.platform }}
-      target: ${{ matrix.target }}
-      build-args: ${{ matrix.args }}
-      sign-binaries: false
-      asset-prefix: "meeting-assistant-staging"
-      upload-artifacts: false
-      release-id: ${{ needs.create-release.outputs.release-id }}
-    secrets: inherit
+    runs-on: macos-14
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install --no-frozen-lockfile
+
+      - name: Build llama-helper sidecar
+        run: |
+          cargo build --release -p llama-helper --features metal
+          mkdir -p frontend/src-tauri/binaries
+          cp target/release/llama-helper frontend/src-tauri/binaries/llama-helper-aarch64-apple-darwin
+
+      - name: Build macOS staging app (unsigned)
+        run: |
+          cd frontend
+          pnpm tauri build --target aarch64-apple-darwin --config src-tauri/tauri.staging.conf.json
+
+      - name: Upload macOS assets to staging release
+        run: |
+          TAG="${{ needs.create-release.outputs.tag }}"
+          DMG_PATH=$(find target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          APP_TAR_PATH=$(find target/aarch64-apple-darwin/release/bundle/macos -name "*.app.tar.gz" | head -1)
+
+          if [ -z "$DMG_PATH" ]; then
+            echo "No DMG produced, failing build."
+            exit 1
+          fi
+
+          gh release upload "$TAG" "$DMG_PATH" --clobber
+
+          if [ -n "$APP_TAR_PATH" ]; then
+            gh release upload "$TAG" "$APP_TAR_PATH" --clobber
+          fi
 
   release-summary:
-    needs: [create-release, build-all-platforms]
+    needs: [create-release, build-macos-staging]
     runs-on: ubuntu-latest
     permissions:
       contents: read
